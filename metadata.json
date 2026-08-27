@@ -1,0 +1,6 @@
+{
+  "name": "Milad Drinking Water",
+  "description": "Premium purified drinking water supply and delivery service in Sylhet since 2006. BSTI Approved 20L & 5L bottles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

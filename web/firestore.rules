@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to fetch admin record
+    function getAdminDoc() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+    }
+    
+    // Admin check: active admin or staff
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        getAdminDoc().active == true &&
+        getAdminDoc().role == 'ADMIN';
+    }
+    
+    function isStaffOrAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        getAdminDoc().active == true &&
+        (getAdminDoc().role == 'ADMIN' || getAdminDoc().role == 'STAFF');
+    }
+
+    // Admins Collection
+    // Only existing ADMINs can read/write admin profiles. Staff cannot manage admins.
+    match /admins/{adminUid} {
+      allow read: if isStaffOrAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      // Staff and Admin can view all orders
+      allow read: if isStaffOrAdmin();
+      
+      // Public customer single document read for Order Tracking
+      // (Can read if they provide orderId and match phone via query/client)
+      allow get: if true;
+
+      // Public Customer creation validation:
+      // Must NOT set administrative fields, status must be 'PENDING', only 20L / 5L allowed
+      allow create: if 
+        request.resource.data.status == 'PENDING' &&
+        request.resource.data.customerName is string &&
+        request.resource.data.customerName.size() > 0 &&
+        request.resource.data.customerName.size() <= 100 &&
+        request.resource.data.customerPhone is string &&
+        request.resource.data.customerPhone.size() >= 10 &&
+        request.resource.data.address is string &&
+        request.resource.data.address.size() > 0 &&
+        request.resource.data.deliveryType in ['HOME', 'OFFICE', 'EVENT_BULK'] &&
+        request.resource.data.totalQuantity > 0 &&
+        request.resource.data.totalQuantity <= 5000 &&
+        (!('adminNote' in request.resource.data) || request.resource.data.adminNote == '') &&
+        (!('assignedTo' in request.resource.data) || request.resource.data.assignedTo == null) &&
+        (!('confirmedAt' in request.resource.data) || request.resource.data.confirmedAt == null) &&
+        (!('deliveredAt' in request.resource.data) || request.resource.data.deliveredAt == null);
+
+      // Only staff/admin can update orders (e.g. status transition, admin notes, assigning)
+      allow update: if isStaffOrAdmin();
+      
+      // Only Admin can delete/soft-delete orders
+      allow delete: if isAdmin();
+    }
+
+    // Customers Collection
+    match /customers/{customerId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    // Products Collection (20L & 5L only)
+    match /products/{productId} {
+      allow read: if true; // Public can see product details
+      allow write: if isAdmin();
+    }
+
+    // Delivery Areas Collection
+    match /deliveryAreas/{areaId} {
+      allow read: if true; // Public can read available delivery areas
+      allow write: if isAdmin();
+    }
+
+    // Settings Collection
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Audit Logs Collection
+    // Read: Only ADMIN can view audit trail
+    // Create: Staff or Admin can log audit operations
+    // Delete/Update: Immutable — NO ONE can edit/delete audit logs
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isStaffOrAdmin();
+      allow update, delete: if false;
+    }
+  }
+}
