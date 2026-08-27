@@ -193,7 +193,8 @@ export class OrderService {
     orderId: string, 
     newStatus: OrderStatus, 
     note?: string, 
-    actorEmail?: string
+    actorEmail?: string,
+    cancelReason?: string
   ): Promise<boolean> {
     const nowIso = new Date().toISOString();
     const updatePayload: Partial<FirestoreOrder> & { [key: string]: any } = {
@@ -202,9 +203,17 @@ export class OrderService {
     };
 
     if (newStatus === 'CONFIRMED') updatePayload.confirmedAt = nowIso;
-    if (newStatus === 'OUT_FOR_DELIVERY') updatePayload.dispatchedAt = nowIso;
+    if (newStatus === 'PREPARING') updatePayload.preparingAt = nowIso;
+    if (newStatus === 'OUT_FOR_DELIVERY') {
+      updatePayload.dispatchedAt = nowIso;
+      updatePayload.outForDeliveryAt = nowIso;
+    }
     if (newStatus === 'DELIVERED') updatePayload.deliveredAt = nowIso;
-    if (newStatus === 'CANCELLED') updatePayload.cancelledAt = nowIso;
+    if (newStatus === 'CANCELLED') {
+      updatePayload.cancelledAt = nowIso;
+      if (cancelReason) updatePayload.cancelReason = cancelReason;
+      if (actorEmail) updatePayload.cancelledBy = actorEmail;
+    }
     if (note) updatePayload.adminNote = note;
 
     if (isFirebaseConfigured) {
@@ -229,6 +238,80 @@ export class OrderService {
     }
 
     return true;
+  }
+
+  // Assign Order to Delivery Staff
+  async assignStaff(
+    orderId: string,
+    staff: { uid: string; name: string; phone?: string },
+    assignedByEmail: string
+  ): Promise<boolean> {
+    const nowIso = new Date().toISOString();
+    const updatePayload: Partial<FirestoreOrder> & { [key: string]: any } = {
+      assignedTo: staff.uid,
+      assignedStaff: staff,
+      assignedAt: nowIso,
+      assignedBy: assignedByEmail,
+      updatedAt: nowIso,
+    };
+
+    if (isFirebaseConfigured) {
+      try {
+        const docRef = doc(db, 'orders', orderId);
+        await updateDoc(docRef, {
+          ...updatePayload,
+          firestoreUpdatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error('Failed to assign staff in Firestore:', err);
+        return false;
+      }
+    }
+
+    // Update local cache as well
+    const local = this.getLocalOrders();
+    const idx = local.findIndex(o => o.orderId === orderId);
+    if (idx !== -1) {
+      local[idx] = { ...local[idx], ...updatePayload };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
+    }
+
+    return true;
+  }
+
+  // WhatsApp Customer Communication Template Generator
+  getCustomerMessageTemplate(
+    order: FirestoreOrder,
+    status: OrderStatus
+  ): string {
+    const orderNumber = order.orderId;
+    const customerName = order.customerName;
+
+    switch (status) {
+      case 'CONFIRMED':
+        return `প্রিয় ${customerName},\nআপনার Milad Drinking Water অর্ডারটি (#${orderNumber}) নিশ্চিত করা হয়েছে।\nঅর্ডার স্ট্যাটাস ট্র্যাক করতে ভিজিট করুন: https://ais-pre-arrcfygh7l67k3dd27x67j-807998781696.asia-east1.run.app/#/track-order\nহটলাইন: ${BUSINESS_CONFIG.phone}`;
+      case 'PREPARING':
+        return `প্রিয় ${customerName},\nআপনার অর্ডার (#${orderNumber}) প্রস্তুত করা হচ্ছে। দ্রুততম সময়ে ডেলিভারি শুরু হবে।\nমিলাদ ড্রিংকিং ওয়াটার (হটলাইন: ${BUSINESS_CONFIG.phone})`;
+      case 'OUT_FOR_DELIVERY':
+        return `প্রিয় ${customerName},\nআপনার অর্ডারটি (#${orderNumber}) ডেলিভারির পথে। অনুগ্রহ করে রিসিভ করার জন্য প্রস্তুত থাকুন।\nমিলাদ ড্রিংকিং ওয়াটার`;
+      case 'DELIVERED':
+        return `প্রিয় ${customerName},\nআপনার অর্ডার (#${orderNumber}) সফলভাবে ডেলিভারি সম্পন্ন হয়েছে। বিশুদ্ধ পানির নির্ভরযোগ্য ঠিকানা - মিলাদ ড্রিংকিং ওয়াটার বেছে নেওয়ার জন্য ধন্যবাদ।`;
+      default:
+        return `প্রিয় ${customerName},\nআপনার অর্ডার #${orderNumber} এর বর্তমান অবস্থা: ${status}।\nমিলাদ ড্রিংকিং ওয়াটার (${BUSINESS_CONFIG.phone})`;
+    }
+  }
+
+  // Generate Customer WhatsApp Direct URL
+  generateCustomerWhatsAppUrl(order: FirestoreOrder, status: OrderStatus): string {
+    const text = this.getCustomerMessageTemplate(order, status);
+    const cleanPhone = order.customerPhone.replace(/\D/g, '');
+    const phoneWithCountry = cleanPhone.startsWith('880') 
+      ? cleanPhone 
+      : cleanPhone.startsWith('0') 
+        ? '88' + cleanPhone 
+        : '880' + cleanPhone;
+
+    return `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(text)}`;
   }
 
   // Local Storage Utilities

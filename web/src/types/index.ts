@@ -53,6 +53,12 @@ export interface OrderItem {
   quantity: number;
 }
 
+export interface AssignedStaffInfo {
+  uid: string;
+  name: string;
+  phone?: string;
+}
+
 export interface FirestoreOrder {
   id: string;
   orderId: string;
@@ -73,10 +79,17 @@ export interface FirestoreOrder {
   createdAt: string;
   updatedAt: string;
   confirmedAt?: string | null;
+  preparingAt?: string | null;
   dispatchedAt?: string | null;
+  outForDeliveryAt?: string | null;
   deliveredAt?: string | null;
   cancelledAt?: string | null;
+  cancelReason?: string | null;
+  cancelledBy?: string | null;
   assignedTo?: string | null;
+  assignedStaff?: AssignedStaffInfo | null;
+  assignedAt?: string | null;
+  assignedBy?: string | null;
   adminNote?: string;
   statusHistory?: {
     status: OrderStatus;
@@ -174,4 +187,114 @@ export interface BusinessSettings {
   proprietorEn: string;
   established: string;
   certification: string;
+  customerReorderReminderDays?: number;
+  longPendingOrderHours?: number;
 }
+
+export type DateRangeType =
+  | 'TODAY'
+  | 'YESTERDAY'
+  | 'LAST_7_DAYS'
+  | 'LAST_30_DAYS'
+  | 'THIS_MONTH'
+  | 'PREVIOUS_MONTH'
+  | 'ALL_TIME'
+  | 'CUSTOM';
+
+export type CustomerSegment = 'NEW' | 'REPEAT' | 'ACTIVE' | 'INACTIVE' | 'EVENT_CUSTOMER';
+
+export interface CustomerAnalyticsProfile {
+  phone: string;
+  name: string;
+  totalOrders: number;
+  deliveredOrders: number;
+  cancelledOrders: number;
+  totalJar20: number;
+  totalBottle5: number;
+  firstOrderAt: string;
+  lastOrderAt: string;
+  preferredArea: string;
+  favoriteProduct: '20L' | '5L' | '20L + 5L';
+  preferredDeliveryType: DeliveryType;
+  lastKnownAddress: string;
+  segment: CustomerSegment;
+  daysSinceLastOrder: number;
+  isReorderDue: boolean;
+  recentOrders: FirestoreOrder[];
+}
+
+export interface OrderStatsSummary {
+  total: number;
+  pending: number;
+  confirmed: number;
+  preparing: number;
+  outForDelivery: number;
+  delivered: number;
+  cancelled: number;
+  eventBulk: number;
+  totalJar20: number;
+  totalBottle5: number;
+  totalUnits: number;
+}
+
+export interface ProductStatsSummary {
+  jar20Units: number;
+  bottle5Units: number;
+  totalUnits: number;
+  jar20SharePercent: number;
+  bottle5SharePercent: number;
+  ordersWithJar20: number;
+  ordersWithBottle5: number;
+  ordersWithBoth: number;
+}
+
+export interface DeliveryTypeStatsSummary {
+  homeOrders: number;
+  officeOrders: number;
+  eventBulkOrders: number;
+  homeSharePercent: number;
+  officeSharePercent: number;
+  eventBulkSharePercent: number;
+}
+
+export interface AreaStatItem {
+  areaName: string;
+  orderCount: number;
+  jar20Count: number;
+  bottle5Count: number;
+  sharePercent: number;
+}
+
+export interface DailyTrendPoint {
+  dateStr: string;
+  displayDateBn: string;
+  displayDateEn: string;
+  orderCount: number;
+  jar20Count: number;
+  bottle5Count: number;
+  deliveredCount: number;
+  cancelledCount: number;
+}
+
+export interface DeliveryPerformanceMetrics {
+  totalDeliveredWithTimestamps: number;
+  avgMinutesConfirmedToDelivered: number | null;
+  avgMinutesPreparingToDelivered: number | null;
+  avgMinutesOutToDelivered: number | null;
+  totalAssigned: number;
+  totalOutForDelivery: number;
+  totalDelivered: number;
+  totalCancelled: number;
+}
+
+export interface StaffPerformanceMetric {
+  staffUid: string;
+  staffName: string;
+  staffEmail: string;
+  assignedCount: number;
+  preparingCount: number;
+  outForDeliveryCount: number;
+  deliveredCount: number;
+  cancelledCount: number;
+}
+

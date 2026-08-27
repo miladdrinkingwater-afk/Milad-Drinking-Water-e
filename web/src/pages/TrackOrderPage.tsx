@@ -18,7 +18,7 @@ import {
 interface TrackOrderPageProps {
   lang: Language;
   onBackToHome: () => void;
-  onOpenOrderModal: () => void;
+  onOpenOrderModal: (productId?: any, serviceType?: any) => void;
 }
 
 export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({
@@ -325,14 +325,29 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({
               </div>
             </div>
 
-            {/* Helpline CTA */}
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <span className="text-slate-500">
-                {lang === 'bn' ? 'যেকোনো প্রয়োজনে সরাসরি যোগাযোগ করুন:' : 'For urgent updates, reach us directly:'}
-              </span>
+            {/* Repeat Order & Helpline CTA */}
+            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              {order.status === 'DELIVERED' ? (
+                <button
+                  onClick={() => {
+                    const prodId = order.jar20Qty > 0 && order.bottle5Qty > 0 ? 'both' : order.jar20Qty > 0 ? 'jar_20l' : 'bottle_5l';
+                    const servType = order.deliveryType === 'OFFICE' ? 'office_delivery' : order.deliveryType === 'EVENT_BULK' ? 'event_bulk_supply' : 'home_delivery';
+                    onOpenOrderModal(prodId, servType);
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold transition flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Package className="w-4 h-4" />
+                  <span>{lang === 'bn' ? 'আবার অর্ডার করুন (Re-order)' : 'Repeat Order'}</span>
+                </button>
+              ) : (
+                <span className="text-slate-500">
+                  {lang === 'bn' ? 'যেকোনো প্রয়োজনে সরাসরি যোগাযোগ করুন:' : 'For urgent updates, reach us directly:'}
+                </span>
+              )}
+
               <a
                 href="tel:+8801711102448"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition"
               >
                 <Phone className="w-4 h-4 text-sky-400" />
                 <span>+8801711102448</span>

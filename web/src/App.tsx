@@ -143,7 +143,7 @@ export function App() {
       <TrackOrderPage
         lang={lang}
         onBackToHome={() => navigateToView('public')}
-        onOpenOrderModal={() => handleOpenOrderModal()}
+        onOpenOrderModal={(pId, sId) => handleOpenOrderModal(pId || 'jar_20l', sId || 'home_delivery')}
       />
     );
   }

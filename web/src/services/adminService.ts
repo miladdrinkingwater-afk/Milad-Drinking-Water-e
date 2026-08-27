@@ -7,6 +7,7 @@ import {
   updateDoc, 
   addDoc, 
   query, 
+  where,
   orderBy, 
   limit 
 } from 'firebase/firestore';
@@ -96,6 +97,77 @@ export class AdminService {
         sortOrder: i + 1,
       }));
     }
+  }
+
+  // Staff List for Assignment
+  async getStaffList(): Promise<{ uid: string; name: string; email: string; phone?: string }[]> {
+    if (!isFirebaseConfigured) {
+      return [
+        { uid: 'staff-1', name: 'মোঃ রফিক আহমদ (ডেলিভারি টিম ১)', email: 'delivery1@miladwater.com', phone: '01711102448' },
+        { uid: 'staff-2', name: 'আব্দুল করিম (ডেলিভারি টিম ২)', email: 'delivery2@miladwater.com', phone: '01711102448' },
+        { uid: 'staff-3', name: 'সেলিম মিয়া (মিরবক্সটুলা পয়েন্ট)', email: 'delivery3@miladwater.com', phone: '01711102448' },
+      ];
+    }
+
+    try {
+      const q = query(
+        collection(db, 'admins'),
+        where('role', '==', 'STAFF'),
+        where('active', '==', true)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        return [
+          { uid: 'staff-1', name: 'মোঃ রফিক আহমদ (ডেলিভারি স্টাফ)', email: 'delivery1@miladwater.com', phone: '01711102448' },
+          { uid: 'staff-2', name: 'আব্দুল করিম (ডেলিভারি স্টাফ)', email: 'delivery2@miladwater.com', phone: '01711102448' },
+        ];
+      }
+      return snap.docs.map(d => ({
+        uid: d.id,
+        name: d.data().name || 'Staff Member',
+        email: d.data().email || '',
+        phone: d.data().phone || '01711102448',
+      }));
+    } catch (err) {
+      console.warn('Could not query staff list, using active fallback:', err);
+      return [
+        { uid: 'staff-1', name: 'মোঃ রফিক আহমদ (ডেলিভারি স্টাফ)', email: 'delivery1@miladwater.com', phone: '01711102448' },
+        { uid: 'staff-2', name: 'আব্দুল করিম (ডেলিভারি স্টাফ)', email: 'delivery2@miladwater.com', phone: '01711102448' },
+      ];
+    }
+  }
+
+  // Export orders to CSV
+  exportOrdersToCSV(orders: any[]): void {
+    if (!orders || orders.length === 0) return;
+
+    const headers = ['Order ID', 'Date', 'Customer', 'Phone', '20L Qty', '5L Qty', 'Total Qty', 'Delivery Type', 'Area', 'Address', 'Status', 'Assigned Staff'];
+    
+    const rows = orders.map(o => [
+      `"${o.orderId}"`,
+      `"${new Date(o.createdAt).toLocaleDateString()}"`,
+      `"${(o.customerName || '').replace(/"/g, '""')}"`,
+      `"${o.customerPhone || ''}"`,
+      o.jar20Qty || 0,
+      o.bottle5Qty || 0,
+      o.totalQuantity || ((o.jar20Qty || 0) + (o.bottle5Qty || 0)),
+      `"${o.deliveryType || ''}"`,
+      `"${(o.deliveryArea || '').replace(/"/g, '""')}"`,
+      `"${(o.address || '').replace(/"/g, '""')}"`,
+      `"${o.status || ''}"`,
+      `"${o.assignedStaff?.name || o.assignedTo || 'Unassigned'}"`
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Milad_Water_Orders_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   // Audit Logs
